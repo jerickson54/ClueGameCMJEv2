@@ -1,0 +1,70 @@
+package clueGame;
+
+public class BoardCell {
+	private int row;
+	private int col;
+	private char initial;
+	private DoorDirection direction;
+
+	public void setInitial(char initial) {
+		this.initial = initial;
+	}
+
+	public BoardCell() {
+		super();
+		row = 0;
+		col = 0;
+	}
+
+	public BoardCell(int row, int col) {
+		super();
+		this.row = row;
+		this.col = col;
+	}
+	
+	public boolean isWalkway(){
+		if(initial == 'W')
+			return true;
+		return false;
+	}
+	
+	public boolean isRoom(){
+		if((initial != 'W') && (direction == DoorDirection.NONE))
+			return true;
+		return false;
+	}
+	
+	public boolean isDoorway(){
+		if(this.direction != DoorDirection.NONE){
+			return true;
+		}
+		return false;
+	}
+
+	public void setDirection(DoorDirection direction) {
+		this.direction = direction;
+	}
+
+	public Object getDoorDirection() {
+		//expand for each option
+		return this.direction;
+	}
+
+	public int getRow() {
+		return row;
+	}
+
+	public int getCol() {
+		return col;
+	}
+
+	public DoorDirection getDirection() {
+		return direction;
+	}
+
+	public Object getInitial() {
+		return initial;
+	}
+	
+	
+}

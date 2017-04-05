@@ -1,0 +1,7 @@
+package clueGame;
+
+import JPanel;
+
+public class drawSquare extends JPanel {
+
+}

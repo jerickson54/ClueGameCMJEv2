@@ -1,0 +1,30 @@
+package clueGame;
+
+import java.awt.BorderLayout;
+
+import javax.swing.JFrame;
+
+public class PlayClue extends JFrame {
+	private static Board board;
+	private DrawClue drawClue;
+	public void getBoard() {
+		board = Board.getInstance();
+		board.setConfigFiles("Clue Map.csv", "Legend.txt","Cards.txt","Players.txt");
+		board.initialize();
+	}
+	private final int WINDOW_HEIGHT = 1000;
+	private final int WINDOW_WIDTH = 900;
+	
+	private PlayClue() {
+		setSize(WINDOW_HEIGHT, WINDOW_WIDTH);
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		drawClue = new DrawClue();
+		add(drawClue, BorderLayout.CENTER);
+	}
+	
+	public static void main(String[] args) {
+		PlayClue game = new PlayClue();
+		game.setVisible(true);
+	}
+	
+}

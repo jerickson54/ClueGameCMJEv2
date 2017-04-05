@@ -1,0 +1,495 @@
+package clueGame;
+
+import java.awt.Color;
+import java.awt.Graphics;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
+
+import javax.swing.JPanel;
+
+
+public class Board extends JPanel{
+
+	private int numRows;
+	private int numColumns;
+	public static final int MAX_BOARD_SIZE = 50;
+	private BoardCell[][] board;
+	private Map<Character, String> legend;
+	private Map<BoardCell, Set<BoardCell>> adjMatrix;
+	private Set<BoardCell>targets;
+	private Set<BoardCell> visited;
+	private String boardConfigFile;
+	private String roomConfigFile; 
+	private String cardConfigFile;
+	private String playerConfigFile;
+	private final String directory = "data/";
+	private ArrayList<Character> letterList;
+	private ArrayList<Integer> isADoorList;
+	private ArrayList<Card> deck;
+	private ArrayList<Player> allPlayers;
+	private ArrayList<ComputerPlayer> cpuPlayers;
+	private Solution soln;
+	private ArrayList<Card> seenCards;
+
+	// variable used for singleton pattern
+	private static Board theInstance = new Board();
+	// ctor is private to ensure only one can be created
+	protected Board() {}
+	// this method returns the only Board
+	public static Board getInstance() {
+		return theInstance;
+	}
+
+
+
+	public void initialize(){
+
+		numColumns = 0;
+		numRows = 0;
+		isADoorList = new ArrayList<Integer>();
+		letterList = new ArrayList<Character>();
+		legend = new HashMap<Character, String>();
+		adjMatrix = new HashMap<BoardCell, Set<BoardCell>>();
+		visited = new HashSet<BoardCell>();
+		targets = new HashSet<BoardCell>();
+		deck = new ArrayList<Card>();
+		allPlayers = new ArrayList<Player>();
+		cpuPlayers = new ArrayList<ComputerPlayer>();
+		seenCards = new ArrayList<Card>();
+
+		loadRoomConfig();
+		loadBoardConfig();
+		loadConfigFiles();
+		
+		createPlayers();
+		dealCards();
+		selectAnswer();
+
+		board = new BoardCell[numRows][numColumns];
+		for(int i = 0; i < numRows; i++){
+			for(int j = 0; j < numColumns; j++){
+				board[i][j] = new BoardCell(i,j);
+				board[i][j].setInitial(letterList.get(numColumns * i + j));
+
+				switch (isADoorList.get(numColumns*i + j)){
+				case 0: board[i][j].setDirection(DoorDirection.NONE);
+				break;
+				case 1: board[i][j].setDirection(DoorDirection.UP);
+				break;
+				case 2: board[i][j].setDirection(DoorDirection.LEFT);
+				break;
+				case 3: board[i][j].setDirection(DoorDirection.RIGHT);
+				break;
+				case 4: board[i][j].setDirection(DoorDirection.DOWN);
+				break;
+				}
+			}
+		}
+	}
+
+	public void loadRoomConfig(){
+		FileReader reader;
+		try {
+			reader = new FileReader(directory + roomConfigFile);
+			Scanner scan = new Scanner(reader);
+			while(scan.hasNextLine()){
+				String in = scan.nextLine();
+				String[] parts = in.split(", ");
+				Character ch = new Character(parts[0].charAt(0));
+				legend.put(ch, parts[1]);
+			}
+
+		} catch (FileNotFoundException e) {
+			System.out.println("Error: Room File not found");
+			e.printStackTrace();
+		}
+	}
+
+	public void loadBoardConfig(){
+		FileReader reader;
+		try {
+			reader = new FileReader(directory + boardConfigFile);
+			Scanner scan = new Scanner(reader);
+			while(scan.hasNextLine()){
+				String in = scan.nextLine();
+				String[] parts = in.split(",");
+				if(parts.length > 0)
+					if(parts[1].length() <= 2){
+						for(int i =0; i<parts.length; i++){
+							Character ch = new Character(parts[i].charAt(0));
+							letterList.add(ch);
+							if(parts[i].length() == 2){				
+								switch (parts[i].charAt(1)) {
+								case 'U':  isADoorList.add(1);;
+								break;
+								case 'L':  isADoorList.add(2);;
+								break;
+								case 'R':  isADoorList.add(3);;
+								break;
+								case 'D':  isADoorList.add(4);;
+								break;
+								case 'N': isADoorList.add(0);;
+								break;
+								}
+							}
+							else if(parts[i].length() == 1){
+								isADoorList.add(0);
+							}
+							else
+								System.out.println(parts[i]);
+						}
+						numColumns = parts.length;
+						numRows ++;
+					}
+			}
+		} catch (FileNotFoundException e) {
+			System.out.println("Error: Board File not found");
+			e.printStackTrace();
+		}
+	}
+	
+	public void loadConfigFiles(){
+		
+		FileReader reader =null;
+		Scanner in = null;
+		try {
+			reader = new FileReader(directory+cardConfigFile);
+			in = new Scanner(reader);
+	
+		
+			while(in.hasNext()){
+				
+				String wholeLine = in.nextLine();
+				String[] temp = wholeLine.split(",");
+				switch(temp[1]){
+				case " Person":
+					Card tempPerson = new Card(temp[0],CardType.PERSON);
+					deck.add(tempPerson);
+					break;
+				case " Weapon":
+					Card tempWeapon = new Card(temp[0],CardType.WEAPON);
+					deck.add(tempWeapon);
+					break;
+				case " Room":
+					Card tempRoom = new Card(temp[0],CardType.ROOM);
+					deck.add(tempRoom);
+					break;
+				default:
+					break;
+				}
+			}
+		} catch (FileNotFoundException e) {
+			System.out.println("Error: Card File not found");
+		}
+	}
+	
+	public void selectAnswer(){
+		boolean havePerson = false;
+		boolean haveRoom = false;
+		boolean haveWeapon = false;
+		
+		String personSoln = null;
+		String roomSoln = null;
+		String weaponSoln = null;
+		
+		for(Card c:deck){
+			
+			if(!havePerson){
+				
+				switch (c.getType()){
+				
+				case PERSON:
+					personSoln = c.getCardName();
+					break;
+				case ROOM:
+					roomSoln = c.getCardName();
+					break;
+				case WEAPON:
+					weaponSoln = c.getCardName();
+					break;
+				default:
+					break;
+				}
+				
+				
+			}
+			
+			if(havePerson && haveRoom && haveWeapon)
+				break;
+		}
+		soln = new Solution(personSoln,roomSoln,weaponSoln);
+		
+	}
+	
+	//for testing purposes
+	public void setAnswer(Solution answer){
+		soln = answer;
+	}
+	
+	public Card handleSuggestion(Solution suggestion, Player accuser, ArrayList<Player> allPeoplePlaying){
+		//assumes allPeoplePlaying is in order.
+		
+		//take the ArrayList containing all the players and put it into an array so we any index associated with an element (player)
+		
+		Player[] people = new Player[allPeoplePlaying.size()];
+		int i=0;
+		int accuserNum=0;
+		for(Player p :allPeoplePlaying){
+			
+			people[i]=p;
+			if(p.equals(accuser)) accuserNum=i;
+			i++;
+		}
+		
+		int reachedTheEndloop;
+		//if at the end already, then set reached the end to 0, otherwise set it to the player directly after
+		if(accuserNum==people.length-1){
+			reachedTheEndloop=0;
+		}
+		else reachedTheEndloop = accuserNum+1;
+		
+		//compressed this to loop through once. 
+		//start wherever you are and loop to the end.
+		//Then start at the beginning up to the element of interest
+		while(reachedTheEndloop!=accuserNum){
+			//basically checks if the card is in the hand of the person of interest
+			if(people[reachedTheEndloop].disproveSuggestion(suggestion)!=null)
+				return people[reachedTheEndloop].disproveSuggestion(suggestion);
+			if(reachedTheEndloop==people.length-1){
+				reachedTheEndloop=0;
+			}
+			//need to increment the index
+			reachedTheEndloop++;
+		}
+		return null;
+	}
+	
+	public boolean checkAccusation(Solution accusation){
+		
+		if(accusation.equals(soln))
+			return true;
+		
+		return false;
+	}
+	
+ 
+	
+	public ArrayList<Card> getDeck(){
+		return deck;
+	}
+	
+	public ArrayList<Player> getPlayers(){
+		return allPlayers;
+	}
+	
+	public void createPlayers(){
+		
+		FileReader reader =null;
+		Scanner in = null;
+		try {
+			reader = new FileReader(directory+playerConfigFile);
+			in = new Scanner(reader);
+	
+		
+			while(in.hasNext()){
+				
+				String wholeLine = in.nextLine();
+				String[] temp = wholeLine.split(",");
+				//the text file contains the player name followed by the starting position, followed by the RGB integer values for color
+				//hence this enables you to change the Players.txt file to make whatever position and color they desire for the game
+				//kind of fun to pick whatever you want without breaking the game
+				allPlayers.add(new Player(temp[0],Integer.parseInt(temp[1]),Integer.parseInt(temp[2]),new Color(Integer.parseInt(temp[3]),Integer.parseInt(temp[4]),Integer.parseInt(temp[5]))));
+			}
+		} catch (FileNotFoundException e) {
+			System.out.println("Error: Player File not found");
+		}
+		
+	
+	}
+	
+	public void createComputerPlayer(String chosenPlayer){
+		for(Player p : allPlayers){
+			if(!(p.getName().equals(chosenPlayer)))
+				cpuPlayers.add(new ComputerPlayer(p.getName(),p.getColumn(),p.getRow(),p.getColor()));
+				
+		}
+		
+		
+		for(ComputerPlayer p: cpuPlayers)
+			System.out.println(p.getName());
+		
+		
+	}
+	
+	public void dealCards(){
+		//shuffle the deck
+		Collections.shuffle(deck);
+		
+		int currentPlayer = 0;
+		
+		for(Card c: deck){
+			allPlayers.get(currentPlayer).addCard(c);
+			currentPlayer++;
+			if(currentPlayer == allPlayers.size())
+				currentPlayer = 0;
+				
+		}
+		
+		
+	}
+	
+	public ArrayList<Card> getSeenCards(){
+		return seenCards;
+	}
+	
+	public void addSeenCards(Card c){
+		seenCards.add(c);
+	}
+	
+	public void calcAdjacencies(BoardCell center){
+
+	
+
+		if(!adjMatrix.containsKey(center)){
+
+			if(!center.isDoorway()){
+				Set<BoardCell> adjSet = new HashSet<BoardCell>();
+				if((center.getRow() - 1 >= 0) && (!this.getCellAt(center.getRow() - 1, center.getCol()).isRoom()) && (this.getCellAt(center.getRow() - 1, center.getCol()).getDirection() == DoorDirection.DOWN || this.getCellAt(center.getRow() - 1, center.getCol()).getDirection() == DoorDirection.NONE)){
+					adjSet.add(board[center.getRow() - 1][center.getCol()]);
+				}
+				if((center.getRow() + 1 <= numRows - 1) && (!this.getCellAt(center.getRow() + 1, center.getCol()).isRoom()) && (this.getCellAt(center.getRow() + 1, center.getCol()).getDirection() == DoorDirection.UP || this.getCellAt(center.getRow() + 1, center.getCol()).getDirection() == DoorDirection.NONE)){
+					adjSet.add(board[center.getRow() + 1][center.getCol()]);
+				}
+				if((center.getCol() - 1 >= 0) && (!this.getCellAt(center.getRow(), center.getCol() - 1).isRoom())&& (this.getCellAt(center.getRow(), center.getCol() - 1).getDirection() == DoorDirection.RIGHT || this.getCellAt(center.getRow(), center.getCol() - 1).getDirection() == DoorDirection.NONE)){
+					adjSet.add(board[center.getRow()][center.getCol() - 1]);
+				}
+				if((center.getCol() + 1 <= numColumns - 1) && (!this.getCellAt(center.getRow(), center.getCol() + 1).isRoom())&& (this.getCellAt(center.getRow(), center.getCol() + 1).getDirection() == DoorDirection.LEFT || this.getCellAt(center.getRow(), center.getCol() + 1).getDirection() == DoorDirection.NONE)){
+					adjSet.add(board[center.getRow()][center.getCol() + 1]);
+				}
+				this.adjMatrix.put(center, adjSet);
+			}
+			else{
+				Set<BoardCell> adjSet = new HashSet<BoardCell>();
+				
+				switch (center.getDirection()){
+					
+					case RIGHT:
+						adjSet.add(board[center.getRow()][center.getCol() + 1]);
+						break;
+					case LEFT:
+						adjSet.add(board[center.getRow()][center.getCol() - 1]);
+						break;
+					case UP:
+						adjSet.add(board[center.getRow() - 1][center.getCol()]);
+						break;
+					case DOWN:
+						adjSet.add(board[center.getRow() + 1][center.getCol()]);
+						break;
+					default:
+						break;
+				}
+						
+				this.adjMatrix.put(center, adjSet);				
+			}
+
+		}
+		return;
+	}
+
+	public void setConfigFiles(String a, String b, String c, String d){
+		boardConfigFile = a;
+		roomConfigFile = b;
+		cardConfigFile = c;
+		playerConfigFile = d;
+		
+	}
+
+	public int getNumRows() {
+		return numRows;
+	}
+	public int getNumColumns() {
+		return numColumns;
+	}
+	public Map<Character, String> getLegend() {
+		return legend;
+	}
+	public Map<BoardCell, Set<BoardCell>> getAdjMatrix() {
+		return adjMatrix;
+	}
+	public Set<BoardCell> getTargets() {
+		return targets;
+	}
+	public String getBoardConfigFile() {
+		return boardConfigFile;
+	}
+	public String getRoomConfigFile() {
+		return roomConfigFile;
+	}
+	public static Board getTheInstance() {
+		return theInstance;
+	}
+	public void calcTargets(int row, int col, int pathLength){
+		BoardCell startCell = this.getCellAt(row, col);
+		visited.clear();
+		targets.clear();
+		visited.add(startCell);
+		getAllTargets(row, col, pathLength);
+		if(targets.contains(startCell))
+			targets.remove(startCell);
+		return;
+	}
+	public BoardCell getCellAt(int row, int col) {
+		return board[row][col];
+	}
+	public Set<BoardCell> getAllTargets(int row, int col, int numSteps){
+		for(BoardCell b: this.getAdjList(row, col))
+		{
+			if(!(visited.contains(b)))
+			{
+				visited.add(b);
+				if(numSteps == 1 || b.isDoorway())
+				{
+					targets.add(b);
+				}
+				else
+				{
+					getAllTargets(b.getRow(), b.getCol(), numSteps - 1);
+				}
+				visited.remove(b);	
+			}
+
+		}
+		return targets;
+	}
+	
+	public Set<BoardCell> getAdjList(int row, int col){
+		BoardCell cell = this.getCellAt(row, col);
+		calcAdjacencies(cell);
+
+		if(cell.isRoom())
+			return new HashSet<BoardCell>();
+
+		return adjMatrix.get(cell);
+	}
+	
+	@Override
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+		for (int i = 0; i < numRows; i++) {
+			for (int j = 0; j < numColumns; j++) {
+				BoardCell bc = getCellAt(i, j);
+				bc.draw(g, this);
+			}
+		}
+		
+	}
+	
+
+}

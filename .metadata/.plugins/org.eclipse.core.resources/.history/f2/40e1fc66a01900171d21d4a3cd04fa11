@@ -1,0 +1,11 @@
+package clueGame;
+
+import javax.swing.JFrame;
+
+public class PlayClue extends JFrame {
+	private static Board board = Board.getInstance();
+	board.setConfigFiles("Clue Map.csv","Legend.txt","Cards.txt","Players.txt");
+	board.initialize();
+	private final int WINDOW_HEIGHT = 900;
+	
+}
